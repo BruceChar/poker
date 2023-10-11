@@ -62,9 +62,10 @@ impl Display for Suit {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[rustfmt::skip]
 pub enum Value {
+    Ace = 14,
     Two = 2,
     Three,
     Four, 
@@ -77,7 +78,6 @@ pub enum Value {
     Jack,
     Queen,
     King,
-    Ace,
 }
 
 impl Value {
@@ -221,6 +221,7 @@ mod tests {
         assert_ne!(Value::Ace, Value::Two);
         assert_eq!(Value::Ace, Value::Ace);
         assert_eq!(Value::Ace, 14);
+        assert_eq!(Value::King, 13);
         assert_ne!(Value::Ace, 1);
         assert_ne!(1, Value::Ace);
         assert_eq!(14, Value::Ace);

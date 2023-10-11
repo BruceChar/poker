@@ -1,5 +1,9 @@
 use core::panic;
-use std::fmt::{Display, Formatter};
+use std::{
+    collections::HashMap,
+    env::consts::FAMILY,
+    fmt::{Display, Formatter},
+};
 
 use crate::{
     card::{Card, Value},
@@ -11,7 +15,7 @@ struct HoldemHand([Card; 5]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Rank {
-    HighCard = 1,
+    HighCard,
     Pair,
     TwoPair,
     Set,
@@ -29,173 +33,56 @@ impl HoldemHand {
         Self(cards)
     }
 
-    ///
     fn rank(&self) -> Rank {
-        let mut cards = self.0;
-        let mut pairs = vec![Vec::with_capacity(4); 2];
-        let mut high = Vec::with_capacity(5);
+        let mut counts = HashMap::with_capacity(5);
+
+        let cards = self.0;
 
         let mut is_flush = true;
         let mut is_straight = true;
-
         let mut pre = cards[0];
-        let mut pre2 = cards[0];
-        for (i, cur) in cards[1..].iter().enumerate() {
-            let is_last = i == 4;
+        counts.insert(pre.value(), 1);
+
+        for cur in &cards[1..] {
             if is_flush && cur.suit() != pre.suit() {
                 is_flush = false;
             }
-            if is_straight && cur.value() + 1 != pre.value(){
+            if is_straight && cur.value() + 1 != pre.value() {
                 // "As 5c 4d 3h 2s"
-                if !(pre.value() == Value::Ace
-                    && cur.value() == Value::Five)
-
-                {
+                if !(pre.value() == Value::Ace && cur.value() == Value::Five) {
                     is_straight = false;
                 }
             }
-            // pair, set, bomb
-            let p0e = pairs[0].is_empty();
-            let p1e = pairs[1].is_empty();
-            if cur.value() == pre.value() {
-                let buf = if i == 3 { vec![pre, *cur] } else { vec![pre] };
-                if p0e {
-                    pairs[0].extend(buf);
-                } else {
-                    if pre.value() == pre2.value() {
-                        pairs[0].extend(buf);
-                    } else {
-                        pairs[1].extend(buf)
-                    }
-                }
-            } else {
-                // two pair?
-                if p0e || pre.value() != pre2.value() {
-                    high.push(pre);
-                } else {
-                    if pre.value() == pre2.value() {
-                        if !p1e {
-                            pairs[1].push(pre);
-                        } else {
-                            pairs[0].push(pre);
-                        }
-                    }
-                }
-                if i == 3 {
-                    high.push(*cur);
-                }
-            }
-            pre2 = pre;
+            *counts.entry(cur.value()).or_insert(0) += 1;
             pre = *cur;
         }
-        if is_flush && is_straight {
-            // royal_flush_straight
-            if cards[1].value() == Value::King {
-                return Rank::RoyalStraightFlush;
-            }
-            return Rank::StraightFlush;
-        }
-        if is_flush {
-            return Rank::Flush;
-        }
-        if is_straight {
-            return Rank::Straight;
-        }
-        match high.len() {
-            5 => return Rank::HighCard,
-            3 => return Rank::Pair,
-            2 => return Rank::Set,
-            1 => {
-                if pairs[1].len() == 0 {
-                    return Rank::Bomb;
+        match counts.len() {
+            5 => match (is_flush, is_straight) {
+                (true, true) => {
+                    if cards[1].value() == Value::King {
+                        return Rank::RoyalStraightFlush;
+                    }
+                    return Rank::StraightFlush;
                 }
-                return Rank::TwoPair;
+                (true, false) => return Rank::Flush,
+                (false, true) => return Rank::Straight,
+                (false, false) => return Rank::HighCard,
+            },
+            4 => return Rank::Pair,
+            3 => {
+                if counts.values().any(|&x| x == 2) {
+                    return Rank::TwoPair;
+                }
+                return Rank::Set;
             }
-            0 => return Rank::FullHouse,
+            2 => {
+                if counts.values().any(|&x| x == 2) {
+                    return Rank::FullHouse;
+                }
+                return Rank::Bomb;
+            }
             _ => panic!("no such rank invalid"),
         }
-
-        // if !pairs[0].is_empty() && !pairs[1].is_empty() {
-        //     // fullhouse or two pair
-
-        // }
-    }
-
-    fn is_high_card(&self) -> bool {
-        self.0
-            .iter()
-            .map(|card| card.value())
-            .collect::<Vec<_>>()
-            .windows(2)
-            .all(|w| w[0] != w[1])
-    }
-
-    fn is_pair(&self) -> bool {
-        self.0
-            .iter()
-            .map(|card| card.value())
-            .collect::<Vec<_>>()
-            .windows(2)
-            .any(|w| w[0] == w[1])
-    }
-
-    fn is_two_pair(&self) -> bool {
-        let pairs = self
-            .0
-            .iter()
-            .map(|card| card.value())
-            .collect::<Vec<_>>()
-            .windows(2)
-            .filter(|w| w[0] == w[1])
-            .count();
-        pairs == 2
-    }
-
-    fn is_set(&self) -> bool {
-        let sets = self
-            .0
-            .iter()
-            .map(|card| card.value())
-            .collect::<Vec<_>>()
-            .windows(3)
-            .filter(|w| w[0] == w[1] && w[1] == w[2])
-            .count();
-        sets == 1
-    }
-
-    fn is_straight(&self) -> bool {
-        self.0
-            .windows(2)
-            .all(|w| w[0].value() as i32 - w[1].value() as i32 == 1)
-    }
-
-    fn is_full_house(&self) -> bool {
-        self.is_set() && self.is_pair()
-    }
-
-    fn is_bomb(&self) -> bool {
-        let bombs = self
-            .0
-            .iter()
-            .map(|card| card.value())
-            .collect::<Vec<_>>()
-            .windows(4)
-            .filter(|w| w[0] == w[1] && w[1] == w[2] && w[2] == w[3])
-            .count();
-        bombs == 1
-    }
-
-    fn is_straight_flush(&self) -> bool {
-        self.is_straight() && self.is_flush()
-    }
-
-    fn is_flush(&self) -> bool {
-        let suit = self.0[0].suit();
-        self.0.iter().all(|card| card.suit() == suit)
-    }
-
-    fn is_royal_straight_flush(&self) -> bool {
-        self.0[0].value() == Value::Ace && self.is_straight() && self.is_flush()
     }
 }
 
