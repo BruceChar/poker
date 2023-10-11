@@ -1,7 +1,31 @@
 #![allow(unused_imports)]
-use std::{fmt::{Display, Formatter}, ops::{Range, RangeBounds, Bound}};
-
 use crate::error::Error;
+use once_cell::sync::Lazy;
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+};
+
+const SUIT_STRINGS: [&str; 4] = ["h", "d", "c", "s"];
+const VALUE_STRINGS: [&str; 13] = [
+    "a", "2", "3", "4", "5", "6", "7", "8", "9", "10", "j", "q", "k",
+];
+
+static SUIT_LOOKUP: Lazy<HashMap<&'static str, Suit>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+    SUIT_STRINGS.iter().enumerate().for_each(|(i, &s)| {
+        m.insert(s, Suit::values()[i]);
+    });
+    m
+});
+
+static VALUE_LOOKUP: Lazy<HashMap<&'static str, Value>> = Lazy::new(|| {
+    let mut m = HashMap::new();
+    VALUE_STRINGS.iter().enumerate().for_each(|(i, &s)| {
+        m.insert(s, Value::values()[i]);
+    });
+    m
+});
 
 #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Suit {
@@ -19,13 +43,10 @@ impl Suit {
 impl TryFrom<&str> for Suit {
     type Error = Error;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "h" | "H" => Ok(Suit::Heart),
-            "d" | "D" => Ok(Suit::Diamond),
-            "c" | "C" => Ok(Suit::Club),
-            "s" | "S" => Ok(Suit::Spade),
-            _ => Err(Error::BadSuit),
-        }
+        SUIT_LOOKUP
+            .get(value.to_lowercase().as_str())
+            .cloned()
+            .ok_or(Error::BadSuit)
     }
 }
 
@@ -75,7 +96,7 @@ impl Value {
 impl std::ops::Add<u8> for Value {
     type Output = u8;
     fn add(self, rhs: u8) -> Self::Output {
-       self.value().add(rhs)
+        self.value().add(rhs)
     }
 }
 
@@ -107,22 +128,10 @@ impl PartialEq<u8> for Value {
 impl TryFrom<&str> for Value {
     type Error = Error;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        match value {
-            "a" | "A" => Ok(Value::Ace),
-            "k" | "K" => Ok(Value::King),
-            "q" | "Q" => Ok(Value::Queen),
-            "j" | "J" => Ok(Value::Jack),
-            "10" => Ok(Value::Ten),
-            "9" => Ok(Value::Nine),
-            "8" => Ok(Value::Eight),
-            "7" => Ok(Value::Seven),
-            "6" => Ok(Value::Six),
-            "5" => Ok(Value::Five),
-            "4" => Ok(Value::Four),
-            "3" => Ok(Value::Three),
-            "2" => Ok(Value::Two),
-            _ => Err(Error::BadValue),
-        }
+        VALUE_LOOKUP
+            .get(value.to_lowercase().as_str())
+            .cloned()
+            .ok_or(Error::BadValue)
     }
 }
 
@@ -171,7 +180,7 @@ impl TryFrom<&str> for Card {
         }
         match card.split_at(len - 1) {
             (v, s) => Ok(Self(Suit::try_from(s)?, Value::try_from(v)?)),
-            _ => Err(Error::BadCard)
+            _ => Err(Error::BadCard),
         }
     }
 }
