@@ -46,7 +46,7 @@ impl TryFrom<&str> for Suit {
         SUIT_LOOKUP
             .get(value.to_lowercase().as_str())
             .cloned()
-            .ok_or(Error::BadSuit)
+            .ok_or(Error::BadSuit(value.to_string()))
     }
 }
 
@@ -131,7 +131,7 @@ impl TryFrom<&str> for Value {
         VALUE_LOOKUP
             .get(value.to_lowercase().as_str())
             .cloned()
-            .ok_or(Error::BadValue)
+            .ok_or(Error::BadValue(value.to_string()))
     }
 }
 
@@ -176,12 +176,10 @@ impl TryFrom<&str> for Card {
     fn try_from(card: &str) -> Result<Self, Self::Error> {
         let len = card.len();
         if len != 2 && len != 3 {
-            return Err(Error::BadCard);
+            return Err(Error::BadCard("invalid length".to_string()));
         }
-        match card.split_at(len - 1) {
-            (v, s) => Ok(Self(Suit::try_from(s)?, Value::try_from(v)?)),
-            _ => Err(Error::BadCard),
-        }
+        let (v, s) = card.split_at(len - 1);
+        Ok(Self(Suit::try_from(s)?, Value::try_from(v)?))
     }
 }
 
@@ -205,8 +203,8 @@ mod tests {
         assert_eq!(Suit::try_from("D"), Ok(Suit::Diamond));
         assert_eq!(Suit::try_from("C"), Ok(Suit::Club));
         assert_eq!(Suit::try_from("S"), Ok(Suit::Spade));
-        assert_eq!(Suit::try_from("x"), Err(Error::BadSuit));
-        assert_eq!(Suit::try_from(""), Err(Error::BadSuit));
+        assert_eq!(Suit::try_from("x"), Err(Error::BadSuit("x".to_string())));
+        assert_eq!(Suit::try_from(""), Err(Error::BadSuit("".to_string())));
     }
 
     #[test]
@@ -215,9 +213,9 @@ mod tests {
         assert_eq!(Value::try_from("A"), Ok(Value::Ace));
         assert_eq!(Value::try_from("2"), Ok(Value::Two));
         assert_eq!(Value::try_from("10"), Ok(Value::Ten));
-        assert_eq!(Value::try_from("13"), Err(Error::BadValue));
-        assert_eq!(Value::try_from("0"), Err(Error::BadValue));
-        assert_eq!(Value::try_from("1"), Err(Error::BadValue));
+        assert_eq!(Value::try_from("13"), Err(Error::BadValue("13".to_string())));
+        assert_eq!(Value::try_from("0"), Err(Error::BadValue("0".to_string())));
+        assert_eq!(Value::try_from("1"), Err(Error::BadValue("1".to_string())));
 
         // eq
         assert_ne!(Value::Ace, Value::Two);
@@ -245,18 +243,18 @@ mod tests {
         assert_eq!(Card::try_from("10d"), Ok(Card(Suit::Diamond, Value::Ten)));
 
         // bad suit to parse
-        assert_eq!(Card::try_from("Ak"), Err(Error::BadSuit));
-        assert_eq!(Card::try_from("pk"), Err(Error::BadSuit)); // parse suit first
+        assert_eq!(Card::try_from("Ak"), Err(Error::BadSuit("k".to_string())));
+        assert_eq!(Card::try_from("pk"), Err(Error::BadSuit("k".to_string()))); // parse suit first
 
         // bad value to parse
-        assert_eq!(Card::try_from("pD"), Err(Error::BadValue));
-        assert_eq!(Card::try_from("20D"), Err(Error::BadValue));
-        assert_eq!(Card::try_from("0D"), Err(Error::BadValue));
-        assert_eq!(Card::try_from("*D"), Err(Error::BadValue));
+        assert_eq!(Card::try_from("pD"), Err(Error::BadValue("p".to_string())));
+        assert_eq!(Card::try_from("20D"), Err(Error::BadValue("20".to_string())));
+        assert_eq!(Card::try_from("0D"), Err(Error::BadValue("0".to_string())));
+        assert_eq!(Card::try_from("*D"), Err(Error::BadValue("*".to_string())));
 
         // bad card format
-        assert_eq!(Card::try_from("100D"), Err(Error::BadCard));
-        assert_eq!(Card::try_from("*"), Err(Error::BadCard));
-        assert_eq!(Card::try_from(""), Err(Error::BadCard));
+        assert_eq!(Card::try_from("100D"), Err(Error::BadCard("invalid length".to_string())));
+        assert_eq!(Card::try_from("*"), Err(Error::BadCard("invalid length".to_string())));
+        assert_eq!(Card::try_from(""), Err(Error::BadCard("invalid length".to_string())));
     }
 }
