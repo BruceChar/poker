@@ -213,7 +213,10 @@ mod tests {
         assert_eq!(Value::try_from("A"), Ok(Value::Ace));
         assert_eq!(Value::try_from("2"), Ok(Value::Two));
         assert_eq!(Value::try_from("10"), Ok(Value::Ten));
-        assert_eq!(Value::try_from("13"), Err(Error::BadValue("13".to_string())));
+        assert_eq!(
+            Value::try_from("13"),
+            Err(Error::BadValue("13".to_string()))
+        );
         assert_eq!(Value::try_from("0"), Err(Error::BadValue("0".to_string())));
         assert_eq!(Value::try_from("1"), Err(Error::BadValue("1".to_string())));
 
