@@ -17,15 +17,15 @@ struct HoldemHand {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Rank {
-    HighCard,
+    HighCard([Value; 5]),
     Pair([Value; 4]),
     TwoPair([Value; 3]),
-    Set(Value),
-    Straight,
-    Flush,
-    FullHouse(Value),
-    Bomb(Value),
-    StraightFlush,
+    Set([Value; 3]),
+    Straight(Value),
+    Flush([Value; 5]),
+    FullHouse([Value; 2]),
+    Bomb([Value; 2]),
+    StraightFlush(Value),
     RoyalStraightFlush,
 }
 
@@ -59,30 +59,42 @@ impl HoldemHand {
             pre = *cur;
         }
         counts.sort_by(|a, b| b.1.cmp(&a.1));
-        match (counts.len(), is_flush, is_straight) {
-            (5, true, true) => {
-                if cards[1].value() == Value::King {
-                    return Rank::RoyalStraightFlush;
+        match counts.len() {
+            5 => {
+                let val = array::from_fn(|i| counts[i].0);
+                if is_straight {
+                    if is_flush && cards[1].value() == Value::King {
+                        return Rank::RoyalStraightFlush;
+                    }
+                    let v = if cards[0].value() == Value::Ace {
+                        cards[1].value()
+                    } else {
+                        cards[0].value()
+                    };
+                    if is_flush {
+                        return Rank::StraightFlush(v);
+                    }
+                    return Rank::Straight(v);
                 }
-                return Rank::StraightFlush;
+                if is_flush {
+                    return Rank::Flush(val);
+                }
+                return Rank::HighCard(val);
             }
-            (5, true, false) => return Rank::Flush,
-            (5, false, true) => return Rank::Straight,
-            (5, false, false) => return Rank::HighCard,
-            (4, _, _) => {
-                return Rank::Pair(array::from_fn(|i| counts[i].0));
-            }
-            (3, _, _) => {
+            4 => return Rank::Pair(array::from_fn(|i| counts[i].0)),
+            3 => {
+                let val = array::from_fn(|i| counts[i].0);
                 if counts[0].1 == 2 {
-                    return Rank::TwoPair(array::from_fn(|i| counts[i].0));
+                    return Rank::TwoPair(val);
                 }
-                return Rank::Set(counts[0].0);
+                return Rank::Set(val);
             }
-            (2, _, _) => {
+            2 => {
+                let val = array::from_fn(|i| counts[i].0);
                 if counts[0].1 == 3 {
-                    return Rank::FullHouse(counts[0].0);
+                    return Rank::FullHouse(val);
                 }
-                return Rank::Bomb(counts[0].0);
+                return Rank::Bomb(val);
             }
             _ => panic!("no such rank invalid"),
         }
@@ -156,22 +168,22 @@ mod tests {
         assert_eq!(hand.rank, Rank::RoyalStraightFlush);
 
         let hand = HoldemHand::try_from("2c 3c 4c 5c Ac").unwrap();
-        assert_eq!(hand.rank, Rank::StraightFlush);
+        assert_eq!(hand.rank, Rank::StraightFlush(Five));
 
         let hand = HoldemHand::try_from("2s 9c 9s 9d 9h").unwrap();
-        assert_eq!(hand.rank, Rank::Bomb(Value::Nine));
+        assert_eq!(hand.rank, Rank::Bomb([Value::Nine, Two]));
 
         let hand = HoldemHand::try_from("2c 2c 3c 3s 2h").unwrap();
-        assert_eq!(hand.rank, Rank::FullHouse(Value::Two));
+        assert_eq!(hand.rank, Rank::FullHouse([Value::Two, Three]));
 
         let hand = HoldemHand::try_from("2c 3c qc ac 9c").unwrap();
-        assert_eq!(hand.rank, Rank::Flush);
+        assert_eq!(hand.rank, Rank::Flush([Ace, Queen, Nine, Three, Two]));
 
         let hand = HoldemHand::try_from("4c 3h 5d 7s 6s").unwrap();
-        assert_eq!(hand.rank, Rank::Straight);
+        assert_eq!(hand.rank, Rank::Straight(Seven));
 
         let hand = HoldemHand::try_from("2c 3h 2d 2s as").unwrap();
-        assert_eq!(hand.rank, Rank::Set(Value::Two));
+        assert_eq!(hand.rank, Rank::Set([Value::Two, Ace, Three]));
 
         let hand = HoldemHand::try_from("2c 3h ad 3s 2s").unwrap();
         assert_eq!(hand.rank, Rank::TwoPair([Value::Three, Value::Two, Ace]));
@@ -180,7 +192,14 @@ mod tests {
         assert_eq!(hand.rank, Rank::Pair([Two, Ace, King, Jack]));
 
         let hand = HoldemHand::try_from("2c 3h ad ks 10s").unwrap();
-        assert_eq!(hand.rank, Rank::HighCard);
+        assert_eq!(hand.rank, Rank::HighCard([Ace, King, Ten, Three, Two]));
+
+        //
+        let first = HoldemHand::try_from("4c 3h 5d 2h 6s").unwrap();
+        let second = HoldemHand::try_from("4c 3h 5d As 2s").unwrap();
+        println!("{:?}", first.rank);
+        println!("{:?}", second.rank);
+        assert_eq!(first.rank > second.rank, true);
     }
 
     #[test]
@@ -188,19 +207,20 @@ mod tests {
     fn test_rank_order() {
         use Rank::*;
         use Value::*;
-        assert_eq!(HighCard, HighCard);
-        assert_eq!(HighCard < TwoPair([Two, Ace, King]), true);
+        assert_eq!(HighCard([Ace, King, Ten, Three, Two]), HighCard([Ace, King, Ten, Three, Two]));
+        assert_eq!(HighCard([Ace, King, Jack, Three, Two]) > HighCard([Ace, King, Ten, Three, Two]), true);
+        assert_eq!(HighCard([Ace, King, Ten, Three, Two]) < TwoPair([Two, Ace, King]), true);
         assert_eq!(TwoPair([Two, Ace, King]) < TwoPair([Three, Ace, King]), true);
         assert_eq!(RoyalStraightFlush, RoyalStraightFlush);
         assert_eq!(RoyalStraightFlush < RoyalStraightFlush, false);
-        assert_eq!(Bomb(Ace) > Bomb(King), true);
-        assert_eq!(Bomb(King) > Bomb(Ace), false);
-        assert_eq!(Bomb(King) > Bomb(King), false);
-        assert_eq!(Bomb(King) > RoyalStraightFlush, false);
-        assert_eq!(Bomb(King) > FullHouse(Ace), true);
-        assert_eq!(Bomb(King) < StraightFlush, true);
+        assert_eq!(Bomb([Ace, Two]) > Bomb([King, Queen]), true);
+        assert_eq!(Bomb([Ace, Three]) > Bomb([Ace, Two]), true);
+        assert_eq!(Bomb([King, Queen]) > RoyalStraightFlush, false);
+        assert_eq!(Bomb([King, Queen]) > FullHouse([Ace, Two]), true);
+        assert_eq!(Bomb([King, Queen]) < StraightFlush(Ace), true);
         assert_eq!(Pair([Ace, King, Queen, Jack]) > Pair([Ace, Queen, Jack, Two]), true);
         assert_eq!(Pair([Ace, Queen, Jack, Three]) > Pair([Ace, Queen, Jack, Two]), true);
         assert_eq!(Pair([Ace, Queen, Jack, Three]), Pair([Ace, Queen, Jack, Three]));
+        assert_eq!(Straight(Five) < Straight(Six), true);
     }
 }
