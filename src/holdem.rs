@@ -1,7 +1,6 @@
 use core::panic;
 use std::{
     collections::HashMap,
-    env::consts::FAMILY,
     fmt::{Display, Formatter},
 };
 
@@ -35,9 +34,7 @@ impl HoldemHand {
 
     fn rank(&self) -> Rank {
         let mut counts = HashMap::with_capacity(5);
-
         let cards = self.0;
-
         let mut is_flush = true;
         let mut is_straight = true;
         let mut pre = cards[0];
@@ -56,26 +53,24 @@ impl HoldemHand {
             *counts.entry(cur.value()).or_insert(0) += 1;
             pre = *cur;
         }
-        match counts.len() {
-            5 => match (is_flush, is_straight) {
-                (true, true) => {
-                    if cards[1].value() == Value::King {
-                        return Rank::RoyalStraightFlush;
-                    }
-                    return Rank::StraightFlush;
+        match (counts.len(), is_flush, is_straight) {
+            (5, true, true) => {
+                if cards[1].value() == Value::King {
+                    return Rank::RoyalStraightFlush;
                 }
-                (true, false) => return Rank::Flush,
-                (false, true) => return Rank::Straight,
-                (false, false) => return Rank::HighCard,
-            },
-            4 => return Rank::Pair,
-            3 => {
+                return Rank::StraightFlush;
+            }
+            (5, true, false) => return Rank::Flush,
+            (5, false, true) => return Rank::Straight,
+            (5, false, false) => return Rank::HighCard,
+            (4, _, _) => return Rank::Pair,
+            (3, _, _) => {
                 if counts.values().any(|&x| x == 2) {
                     return Rank::TwoPair;
                 }
                 return Rank::Set;
             }
-            2 => {
+            (2, _, _) => {
                 if counts.values().any(|&x| x == 2) {
                     return Rank::FullHouse;
                 }
